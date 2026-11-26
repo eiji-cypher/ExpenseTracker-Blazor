@@ -1,0 +1,134 @@
+@page "/history"
+@implements IDisposable
+@inject IExpenseService Expenses
+@inject NavigationManager Nav
+@inject ToastService Toast
+
+<PageTitle>Transactions · EijiDev Budget Pocket</PageTitle>
+
+<ExpenseSummary />
+
+<section class="web-dashboard-card full-width single-focus-view">
+    <div class="card-header-neo">
+        <div class="card-header-title-group">
+            <h2>All Transactions</h2>
+            <span class="card-header-badge">@VisibleTransactions.Count Entries</span>
+            @if (Expenses.DeletedTransactions.Count > 0)
+            {
+                <NavLink href="deleted" class="badge-link-trash">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                    <span>@Expenses.DeletedTransactions.Count in Trash</span>
+                </NavLink>
+            }
+        </div>
+        <NavLink href="" class="btn-neo-secondary small">
+            ← Back to Dashboard
+        </NavLink>
+    </div>
+
+    <FilterBar Search="@_search"
+               Category="@_category"
+               Type="@_type"
+               OnSearchChanged="s => _search = s"
+               OnCategoryChanged="c => _category = c"
+               OnTypeChanged="t => _type = t" />
+
+    <TransactionList Transactions="@VisibleTransactions"
+                     OnEdit="HandleStartEdit"
+                     OnDelete="HandleStartDelete"
+                     EmptyText="@(Expenses.Transactions.Count > 0 ? "No transactions match your current filters." : null)" />
+</section>
+
+<!-- Edit Modal -->
+@if (_editing is not null)
+{
+    <Modal Title="Edit Transaction" OnClose="() => _editing = null">
+        <TransactionForm Initial="@_editing"
+                         SubmitLabel="Save Changes"
+                         OnSubmit="HandleUpdateSubmit"
+                         OnCancel="() => _editing = null" />
+    </Modal>
+}
+
+<!-- Soft Delete Confirmation Modal -->
+@if (_deleting is not null)
+{
+    <Modal Title="Move to Recently Deleted?" OnClose="() => _deleting = null">
+        <div class="delete-modal-content">
+            <p class="delete-warning-text">
+                <strong>@_deleting.Category</strong> · @Money.Format(_deleting.Amount)
+                @(!string.IsNullOrEmpty(_deleting.Description) ? $" ({_deleting.Description})" : "") will be moved to <strong>Recently Deleted</strong>.
+            </p>
+            <p class="delete-sub-text">
+                You can recover and restore this transaction at any time from the Recently Deleted tab.
+            </p>
+            <div class="form-actions-row">
+                <button type="button"
+                        class="btn-neo-secondary"
+                        @onclick="() => _deleting = null">
+                    Keep Record
+                </button>
+                <button type="button"
+                        class="btn-neo-danger"
+                        @onclick="HandleConfirmDelete">
+                    Move to Trash
+                </button>
+            </div>
+        </div>
+    </Modal>
+}
+
+@code {
+    private string _search = string.Empty;
+    private string _category = string.Empty;
+    private string _type = string.Empty;
+
+    private Transaction? _editing;
+    private Transaction? _deleting;
+
+    private IReadOnlyList<Transaction> VisibleTransactions
+    {
+        get
+        {
+            Category? cat = Enum.TryParse<Category>(_category, out var parsedCat) ? parsedCat : null;
+            TransactionType? ty = Enum.TryParse<TransactionType>(_type, out var parsedTy) ? parsedTy : null;
+            return Expenses.Filter(_search, cat, ty).ToList();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Expenses.OnChange += OnDataChanged;
+    }
+
+    private void OnDataChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Expenses.OnChange -= OnDataChanged;
+    }
+
+    private void HandleStartEdit(Transaction t) => _editing = t.Clone();
+    private void HandleStartDelete(Transaction t) => _deleting = t;
+
+    private async Task HandleUpdateSubmit(Transaction item)
+    {
+        await Expenses.UpdateAsync(item);
+        _editing = null;
+        Toast.Show("Transaction updated.");
+    }
+
+    private async Task HandleConfirmDelete()
+    {
+        if (_deleting is null) return;
+        var target = _deleting;
+        _deleting = null;
+        await Expenses.SoftDeleteAsync(target.Id);
+        Toast.Show($"Moved \"{target.Description ?? target.Category.ToString()}\" to Recently Deleted.", ToastLevel.Info);
+    }
+}

@@ -1,0 +1,189 @@
+@using System.Globalization
+@using ExpenseTracker.Helpers
+@using ExpenseTracker.Models
+
+<div class="wave-chart-container">
+    <div class="wave-chart-wrap">
+        <svg viewBox="0 0 @Width @Height" class="wave-svg" preserveAspectRatio="none">
+            <path d="@Path3"
+                  fill="none"
+                  stroke="#e4e8ef"
+                  stroke-width="1.2"
+                  stroke-linecap="round" />
+
+            <path d="@Path2"
+                  fill="none"
+                  stroke="#c8ced9"
+                  stroke-width="1.6"
+                  stroke-linecap="round" />
+
+            <path d="@Path1"
+                  fill="none"
+                  stroke="#181c24"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round" />
+
+            <line x1="@MarkerX.ToString("F1", CultureInfo.InvariantCulture)"
+                  y1="16"
+                  x2="@MarkerX.ToString("F1", CultureInfo.InvariantCulture)"
+                  y2="@(Height - 10)"
+                  stroke="#cbd2de"
+                  stroke-width="1.2"
+                  stroke-dasharray="3 3" />
+
+            <circle cx="@MarkerX.ToString("F1", CultureInfo.InvariantCulture)"
+                    cy="@MarkerY.ToString("F1", CultureInfo.InvariantCulture)"
+                    r="4.5"
+                    fill="#181c24"
+                    stroke="#ffffff"
+                    stroke-width="2" />
+        </svg>
+
+        @{
+            var pctX = Math.Clamp((MarkerX / Width) * 100.0, 5.0, 95.0);
+            var pctY = Math.Clamp((MarkerY / Height) * 100.0, 10.0, 85.0);
+            var transX = pctX <= 18 ? "-15%" : pctX >= 82 ? "-85%" : "-50%";
+        }
+
+        <div class="wave-active-pill"
+             style="left: @(pctX.ToString("F1", CultureInfo.InvariantCulture))%; top: @(pctY.ToString("F1", CultureInfo.InvariantCulture))%; transform: translate(@transX, -125%);">
+            <span class="active-spend-amount">
+                @Money.Format(ActiveMonth.Spend)
+            </span>
+        </div>
+    </div>
+
+    <div class="chart-month-axis" role="tablist" aria-label="Month Navigation">
+        @for (int i = 0; i < MonthlyData.Count; i++)
+        {
+            var idx = i;
+            var m = MonthlyData[idx];
+            var tooltipText = $"{m.Date}: −{Money.Format(m.Spend)}";
+            <button type="button"
+                    class="axis-month-btn @(idx == SafeIndex ? "active" : "")"
+                    @onclick="() => _hoverIndex = idx"
+                    title="@tooltipText"
+                    aria-label="@m.Date">
+                <span class="month-full">@m.Label</span>
+                <span class="month-short">@m.ShortLabel</span>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Transaction> Transactions { get; set; } = Array.Empty<Transaction>();
+    [Parameter] public decimal CurrentSpend { get; set; } = 0;
+
+    private const int Width = 340;
+    private const int Height = 120;
+    private const int PaddingX = 18;
+
+    private int _hoverIndex = DateTime.Now.Month - 1;
+
+    public class MonthSpend
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string ShortLabel { get; set; } = string.Empty;
+        public string Date { get; set; } = string.Empty;
+        public decimal Spend { get; set; }
+        public int Count { get; set; }
+
+        public MonthSpend() { }
+
+        public MonthSpend(string key, string label, string shortLabel, string date, decimal spend, int count)
+        {
+            Key = key;
+            Label = label;
+            ShortLabel = shortLabel;
+            Date = date;
+            Spend = spend;
+            Count = count;
+        }
+    }
+
+    private List<MonthSpend> MonthlyData
+    {
+        get
+        {
+            var year = DateTime.Now.Year;
+            var list = new List<MonthSpend>();
+
+            for (int m = 0; m < 12; m++)
+            {
+                var dt = new DateTime(year, m + 1, 1);
+                var key = $"{year}-{m + 1:D2}";
+                var label = dt.ToString("MMM", CultureInfo.InvariantCulture);
+                var shortLabel = label[..1];
+                var fullDate = dt.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+                var expenses = Transactions
+                    .Where(t => t.Type == TransactionType.Expense && t.Date.Year == year && t.Date.Month == (m + 1))
+                    .ToList();
+                var spend = expenses.Sum(t => t.Amount);
+
+                list.Add(new MonthSpend(key, label, shortLabel, fullDate, spend, expenses.Count));
+            }
+
+            return list;
+        }
+    }
+
+    private int SafeIndex => Math.Clamp(_hoverIndex, 0, Math.Max(0, MonthlyData.Count - 1));
+
+    private MonthSpend ActiveMonth => MonthlyData.Count > 0
+        ? MonthlyData[SafeIndex]
+        : new MonthSpend("", "Now", "N", "Current Month", CurrentSpend, 0);
+
+    private decimal MaxSpend
+    {
+        get
+        {
+            var spends = MonthlyData.Select(m => m.Spend).ToList();
+            var max = spends.Count > 0 ? spends.Max() : 0;
+            return Math.Max(max, Math.Max(CurrentSpend, 1m));
+        }
+    }
+
+    private bool HasAnyExpenses => MonthlyData.Any(m => m.Spend > 0) || CurrentSpend > 0;
+
+    private double AmplitudeFactor => HasAnyExpenses ? Math.Min((double)MaxSpend / 1000.0, 1.0) : 0.0;
+
+    private double TargetT => SafeIndex / 11.0;
+    private double MarkerX => PaddingX + TargetT * (Width - 2 * PaddingX);
+    private double MarkerY => 65.0 + Math.Sin(TargetT * Math.PI * 4.0 - 0.4) * (18.0 * AmplitudeFactor);
+
+    private string Path1 => BuildWave(4.0, -0.4, 18.0);
+    private string Path2 => BuildWave(3.0, 1.2, 14.0);
+    private string Path3 => BuildWaveCosine(3.5, 0.0, 10.0);
+
+    private string BuildWave(double freq, double phase, double amp)
+    {
+        var pts = new List<string>();
+        const int steps = 60;
+        for (int i = 0; i <= steps; i++)
+        {
+            var t = (double)i / steps;
+            var x = PaddingX + t * (Width - 2 * PaddingX);
+            var y = 65.0 + Math.Sin(t * Math.PI * freq + phase) * (amp * AmplitudeFactor);
+            pts.Add(string.Format(CultureInfo.InvariantCulture, "{0} {1:F1} {2:F1}", i == 0 ? "M" : "L", x, y));
+        }
+        return string.Join(" ", pts);
+    }
+
+    private string BuildWaveCosine(double freq, double phase, double amp)
+    {
+        var pts = new List<string>();
+        const int steps = 60;
+        for (int i = 0; i <= steps; i++)
+        {
+            var t = (double)i / steps;
+            var x = PaddingX + t * (Width - 2 * PaddingX);
+            var y = 65.0 + Math.Cos(t * Math.PI * freq + phase) * (amp * AmplitudeFactor);
+            pts.Add(string.Format(CultureInfo.InvariantCulture, "{0} {1:F1} {2:F1}", i == 0 ? "M" : "L", x, y));
+        }
+        return string.Join(" ", pts);
+    }
+}

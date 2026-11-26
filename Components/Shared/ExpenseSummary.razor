@@ -1,0 +1,61 @@
+@implements IDisposable
+@inject IExpenseService Expenses
+
+<!-- Desktop Top 3 Stat Cards (Hidden on mobile via media query to avoid duplication with GCash wallet card) -->
+<div class="summary-cards-container" aria-label="Financial Summary Cards">
+    <!-- Card 1: Total Balance -->
+    <div class="summary-pill-card">
+        <div class="card-top-row">
+            <span class="card-label">Total Balance</span>
+            <span class="currency-pill">PHP</span>
+        </div>
+        <div class="card-main-value">@Money.Format(Expenses.Balance)</div>
+        <div class="card-trend-badge @(Expenses.Balance >= 0 ? "positive" : "negative")">
+            <span class="stat-subtitle-text @(Expenses.Balance >= 0 ? "text-inflow" : "text-outflow")">
+                @(Expenses.Balance >= 0 ? "+ Net Positive" : "− Net Negative")
+            </span>
+        </div>
+    </div>
+
+    <!-- Card 2: Total Expense -->
+    <div class="summary-pill-card">
+        <div class="card-top-row">
+            <span class="card-label">Total Expense</span>
+            <div class="card-icon-dark" title="Total Outflow">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <path d="M16 10a4 4 0 0 1-8 0" />
+                </svg>
+            </div>
+        </div>
+        <div class="card-main-value">@Money.Format(Expenses.TotalExpense)</div>
+        <div class="card-trend-badge negative">
+            <span class="stat-subtitle-text text-muted-outflow">Total Outflow</span>
+        </div>
+    </div>
+
+    <!-- Card 3: Total Income -->
+    <div class="summary-pill-card">
+        <div class="card-top-row">
+            <span class="card-label">Total Income</span>
+            <div class="card-icon-dark" title="Total Inflow">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <polyline points="19 12 12 19 5 12" />
+                </svg>
+            </div>
+        </div>
+        <div class="card-main-value">@Money.Format(Expenses.TotalIncome)</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool ShowHero { get; set; } = true;
+    [Parameter] public bool ShowQuickActions { get; set; } = true;
+    [Parameter] public bool ShowSplitCards { get; set; } = false;
+
+    protected override void OnInitialized() => Expenses.OnChange += Refresh;
+    private void Refresh() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Expenses.OnChange -= Refresh;
+}

@@ -1,0 +1,37 @@
+@page "/analytics"
+@implements IDisposable
+@inject IExpenseService Expenses
+@inject NavigationManager Nav
+
+<PageTitle>Analytics · EijiDev Budget Pocket</PageTitle>
+
+<ExpenseSummary />
+
+<section class="web-dashboard-card full-width single-focus-view">
+    <div class="card-header-neo">
+        <div class="card-header-title-group">
+            <h2>Analytics &amp; Detailed Breakdown</h2>
+            <span class="card-header-badge">PHP Currency</span>
+        </div>
+        <NavLink href="" class="btn-neo-secondary small">
+            ← Back to Dashboard
+        </NavLink>
+    </div>
+
+    <AnalyticsScreen Transactions="@Expenses.Transactions" />
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Expenses.OnChange += OnDataChanged;
+    }
+
+    private void OnDataChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Expenses.OnChange -= OnDataChanged;
+    }
+}
+

@@ -1,0 +1,27 @@
+<div class="backdrop-neo" @onclick="OnClose">
+    <div class="modal-neo"
+         role="dialog"
+         aria-modal="true"
+         aria-label="@Title"
+         @onclick:stopPropagation="true">
+        <div class="modal-header-neo">
+            <h2 class="modal-title-neo">@Title</h2>
+            <button type="button"
+                    class="modal-close-btn"
+                    @onclick="OnClose"
+                    aria-label="Close modal">
+                ✕
+            </button>
+        </div>
+        <div class="modal-body-neo">
+            @ChildContent
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
+

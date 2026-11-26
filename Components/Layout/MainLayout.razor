@@ -1,0 +1,150 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IExpenseService Expenses
+@inject IAuthService Auth
+@inject INotificationService Notifications
+@inject NavigationManager Nav
+@inject ToastService Toast
+
+<div class="web-app-root">
+    @if (!Auth.HasConfiguredName || _isEditNameOpen)
+    {
+        <NamePromptModal InitialName="@Auth.UserName"
+                         OnSubmit="HandleNameSubmit"
+                         OnCancel="() => _isEditNameOpen = false" />
+    }
+
+    <!-- Top Navigation Bar -->
+    <header class="web-top-navbar">
+        <div class="navbar-brand-section">
+            <div style="display:flex; align-items:center; gap: 0.75rem; color:inherit; user-select:none; cursor:default;">
+                <img src="/logo.png" alt="EijiDev Pocket Budget" class="navbar-logo-img" />
+                <div class="navbar-titles">
+                    <h1 class="navbar-title">EijiDev Pocket Budget</h1>
+                    <span class="navbar-greeting-text">@Greeting</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="navbar-center-stats">
+            <div class="nav-stat-chip">
+                <span class="chip-label">Balance:</span>
+                <strong class="chip-value">@Money.Format(Expenses.Balance)</strong>
+            </div>
+        </div>
+
+        <div class="navbar-actions-section">
+            <button type="button"
+                    class="navbar-icon-btn notif-trigger-btn"
+                    @onclick="() => _isNotifOpen = true"
+                    title="System Activity & Notifications"
+                    aria-label="System Activity & Notifications">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                </svg>
+                @if (Notifications.UnreadCount > 0)
+                {
+                    <span class="notif-badge-dot"></span>
+                }
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <div class="web-main-container">
+        <NavMenu OnEditName="() => _isEditNameOpen = true" />
+
+        <main class="web-content-area">
+            @Body
+        </main>
+    </div>
+
+    <!-- Quick Add Modal -->
+    @if (_isAddModalOpen)
+    {
+        <Modal Title="Add Transaction (PHP)" OnClose="() => _isAddModalOpen = false">
+            <TransactionForm SubmitLabel="Record Entry"
+                             OnSubmit="HandleAddSubmit"
+                             OnCancel="() => _isAddModalOpen = false" />
+        </Modal>
+    }
+
+    <!-- Notifications Drawer -->
+    @if (_isNotifOpen)
+    {
+        <NotificationDrawer OnClose="() => _isNotifOpen = false" />
+    }
+
+    <!-- Mobile Floating Dock -->
+    <FloatingDock CurrentView="@CurrentView"
+                  OnViewChanged="NavigateView"
+                  OnQuickAdd="() => _isAddModalOpen = true"
+                  DeletedCount="@Expenses.DeletedTransactions.Count" />
+
+    <!-- Toast Notifications Host -->
+    <ToastHost />
+</div>
+
+@code {
+    private bool _isEditNameOpen;
+    private bool _isNotifOpen;
+    private bool _isAddModalOpen;
+
+    private string Greeting => string.IsNullOrWhiteSpace(Auth.UserName)
+        ? "Welcome to EijiDev Pocket Budget"
+        : $"Budgeting like a pro, {Auth.UserName}!";
+
+    private string CurrentView
+    {
+        get
+        {
+            var path = new Uri(Nav.Uri).AbsolutePath.Trim('/');
+            if (path.StartsWith("analytics", StringComparison.OrdinalIgnoreCase)) return "analytics";
+            if (path.StartsWith("history", StringComparison.OrdinalIgnoreCase)) return "history";
+            if (path.StartsWith("deleted", StringComparison.OrdinalIgnoreCase)) return "deleted";
+            return "dashboard";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Expenses.OnChange += OnDataChanged;
+        Auth.OnAuthStateChanged += OnDataChanged;
+        Notifications.OnChange += OnDataChanged;
+        await Expenses.LoadAsync();
+    }
+
+    private void OnDataChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Expenses.OnChange -= OnDataChanged;
+        Auth.OnAuthStateChanged -= OnDataChanged;
+        Notifications.OnChange -= OnDataChanged;
+    }
+
+    private void HandleNameSubmit(string name)
+    {
+        Auth.SetUserName(name);
+        _isEditNameOpen = false;
+        Toast.Show($"Hey, {name}! Welcome to budget tracker!");
+    }
+
+    private async Task HandleAddSubmit(Transaction item)
+    {
+        await Expenses.AddAsync(item);
+        _isAddModalOpen = false;
+        Toast.Show("Transaction recorded successfully.");
+    }
+
+    private void NavigateView(string view)
+    {
+        switch (view)
+        {
+            case "analytics": Nav.NavigateTo("analytics"); break;
+            case "history": Nav.NavigateTo("history"); break;
+            case "deleted": Nav.NavigateTo("deleted"); break;
+            default: Nav.NavigateTo(""); break;
+        }
+    }
+}

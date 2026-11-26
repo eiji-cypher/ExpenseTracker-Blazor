@@ -1,0 +1,79 @@
+@using ExpenseTracker.Services
+@inject IExpenseService Expenses
+@inject IAuthService Auth
+
+<aside class="web-sidebar">
+    <nav class="sidebar-nav" aria-label="Web Navigation">
+        <NavLink class="sidebar-nav-btn" href="" Match="NavLinkMatch.All" style="text-decoration: none;">
+            <span class="btn-icon">
+                <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                </svg>
+            </span>
+            <span class="btn-text">Dashboard</span>
+            <div class="active-pill-dot"></div>
+        </NavLink>
+
+        <NavLink class="sidebar-nav-btn" href="analytics" style="text-decoration: none;">
+            <span class="btn-icon">
+                <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 12c3-6 6-6 9 0s6 6 9 0" />
+                    <circle cx="15.5" cy="8.5" r="1.5" fill="currentColor" />
+                </svg>
+            </span>
+            <span class="btn-text">Analytics</span>
+            <div class="active-pill-dot"></div>
+        </NavLink>
+
+        <NavLink class="sidebar-nav-btn" href="history" style="text-decoration: none;">
+            <span class="btn-icon">
+                <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+                    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+                    <path d="M18 12a2 2 0 0 0 0 4h4v-4z" />
+                </svg>
+            </span>
+            <span class="btn-text">Transactions</span>
+            <div class="active-pill-dot"></div>
+        </NavLink>
+
+        <NavLink class="sidebar-nav-btn" href="deleted" style="text-decoration: none;">
+            <span class="btn-icon">
+                <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+            </span>
+            <span class="btn-text">Recently Deleted</span>
+            @if (Expenses.DeletedTransactions.Count > 0)
+            {
+                <span class="sidebar-nav-badge warning">@Expenses.DeletedTransactions.Count</span>
+            }
+            <div class="active-pill-dot"></div>
+        </NavLink>
+    </nav>
+
+    <div class="sidebar-user-card" @onclick="OnEditName" title="Change Display Name">
+        <div class="user-avatar-circle">
+            @(string.IsNullOrEmpty(Auth.UserName) ? "U" : Auth.UserName[..1].ToUpper())
+        </div>
+        <div class="user-text-meta">
+            <span class="user-name">@(string.IsNullOrEmpty(Auth.UserName) ? "Budget Pocket" : Auth.UserName)</span>
+            <span class="user-role-text">Personal Wallet</span>
+        </div>
+        <button type="button"
+                class="user-logout-btn"
+                @onclick="OnEditName"
+                @onclick:stopPropagation="true"
+                title="Edit Display Name"
+                aria-label="Edit Display Name">
+            ✎
+        </button>
+    </div>
+</aside>
+
+@code {
+    [Parameter] public EventCallback OnEditName { get; set; }
+}

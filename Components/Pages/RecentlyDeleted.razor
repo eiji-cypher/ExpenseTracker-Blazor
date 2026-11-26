@@ -1,0 +1,50 @@
+@page "/deleted"
+@implements IDisposable
+@inject IExpenseService Expenses
+@inject NavigationManager Nav
+@inject ToastService Toast
+
+<PageTitle>Recently Deleted · EijiDev Budget Pocket</PageTitle>
+
+<ExpenseSummary />
+
+<section class="web-dashboard-card full-width single-focus-view">
+    <RecentlyDeletedView DeletedTransactions="@Expenses.DeletedTransactions"
+                         OnRestore="HandleRestore"
+                         OnPurge="HandlePurge"
+                         OnClearAll="HandleClearAll"
+                         OnBack='() => Nav.NavigateTo("")' />
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Expenses.OnChange += OnDataChanged;
+    }
+
+    private void OnDataChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Expenses.OnChange -= OnDataChanged;
+    }
+
+    private async Task HandleRestore(int id)
+    {
+        await Expenses.RestoreAsync(id);
+        Toast.Show("Transaction restored to active list.");
+    }
+
+    private async Task HandlePurge(int id)
+    {
+        await Expenses.PurgeAsync(id);
+        Toast.Show("Transaction permanently deleted.", ToastLevel.Error);
+    }
+
+    private async Task HandleClearAll()
+    {
+        await Expenses.ClearAllDeletedAsync();
+        Toast.Show("Trash emptied successfully.", ToastLevel.Error);
+    }
+}
+

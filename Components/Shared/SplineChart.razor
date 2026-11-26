@@ -1,0 +1,212 @@
+@using System.Globalization
+@using ExpenseTracker.Helpers
+@using ExpenseTracker.Models
+
+<div class="spline-chart-container">
+    <div class="spline-chart-wrap">
+        <svg viewBox="0 0 @Width @Height" class="spline-svg" preserveAspectRatio="none">
+            <defs>
+                <linearGradient id="splineAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#1e222b" stop-opacity="0.14" />
+                    <stop offset="65%" stop-color="#1e222b" stop-opacity="0.03" />
+                    <stop offset="100%" stop-color="#1e222b" stop-opacity="0.0" />
+                </linearGradient>
+            </defs>
+
+            @if (!string.IsNullOrEmpty(AreaPath))
+            {
+                <path d="@AreaPath" fill="url(#splineAreaGrad)" />
+            }
+
+            @if (!string.IsNullOrEmpty(LinePath))
+            {
+                <path d="@LinePath"
+                      fill="none"
+                      stroke="#1d212a"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round" />
+            }
+
+            <line x1="@ActivePoint.X.ToString("F1", CultureInfo.InvariantCulture)"
+                  y1="@PaddingTop"
+                  x2="@ActivePoint.X.ToString("F1", CultureInfo.InvariantCulture)"
+                  y2="@(Height - PaddingBottom)"
+                  stroke="#cbd2de"
+                  stroke-width="1.2"
+                  stroke-dasharray="3 3" />
+
+            <circle cx="@ActivePoint.X.ToString("F1", CultureInfo.InvariantCulture)"
+                    cy="@ActivePoint.Y.ToString("F1", CultureInfo.InvariantCulture)"
+                    r="4.5"
+                    fill="#1d212a"
+                    stroke="#ffffff"
+                    stroke-width="2" />
+        </svg>
+
+        @{
+            var pctX = Math.Clamp((ActivePoint.X / Width) * 100.0, 5.0, 95.0);
+            var pctY = Math.Clamp((ActivePoint.Y / Height) * 100.0, 10.0, 85.0);
+            var transX = pctX <= 18 ? "-15%" : pctX >= 82 ? "-85%" : "-50%";
+        }
+
+        <div class="spline-tooltip-bubble"
+             style="left: @(pctX.ToString("F1", CultureInfo.InvariantCulture))%; top: @(pctY.ToString("F1", CultureInfo.InvariantCulture))%; transform: translate(@transX, -125%);">
+            <span class="tooltip-amount">
+                @Money.Format(ActivePoint.Amount)
+            </span>
+            <span class="tooltip-date">@ActivePoint.Date</span>
+        </div>
+    </div>
+
+    <div class="chart-month-axis" role="tablist" aria-label="Month Navigation">
+        @for (int i = 0; i < Points.Count; i++)
+        {
+            var idx = i;
+            var pt = Points[idx];
+            var tooltipText = $"{pt.Date}: {(pt.Amount >= 0 ? "+" : "−")}{Money.Format(Math.Abs(pt.Amount))}";
+            <button type="button"
+                    class="axis-month-btn @(idx == SafeIndex ? "active" : "")"
+                    @onclick="() => _hoverIndex = idx"
+                    title="@tooltipText"
+                    aria-label="@pt.Date">
+                <span class="month-full">@pt.Label</span>
+                <span class="month-short">@pt.ShortLabel</span>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Transaction> Transactions { get; set; } = Array.Empty<Transaction>();
+
+    private const int Width = 340;
+    private const int Height = 150;
+    private const int PaddingX = 18;
+    private const int PaddingBottom = 20;
+    private const int PaddingTop = 32;
+
+    private int _hoverIndex = DateTime.Now.Month - 1;
+
+    public class MonthPoint
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string ShortLabel { get; set; } = string.Empty;
+        public string Date { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public decimal Income { get; set; }
+        public decimal Expense { get; set; }
+        public int Count { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+
+        public MonthPoint() { }
+
+        public MonthPoint(string key, string label, string shortLabel, string date, decimal amount, decimal income, decimal expense, int count, double x = 0, double y = 0)
+        {
+            Key = key;
+            Label = label;
+            ShortLabel = shortLabel;
+            Date = date;
+            Amount = amount;
+            Income = income;
+            Expense = expense;
+            Count = count;
+            X = x;
+            Y = y;
+        }
+    }
+
+    private List<MonthPoint> Points
+    {
+        get
+        {
+            var year = DateTime.Now.Year;
+            var list = new List<MonthPoint>();
+            var maxAbs = 1.0m;
+
+            for (int m = 0; m < 12; m++)
+            {
+                var dt = new DateTime(year, m + 1, 1);
+                var key = $"{year}-{m + 1:D2}";
+                var label = dt.ToString("MMM", CultureInfo.InvariantCulture);
+                var shortLabel = label[..1];
+                var fullDate = dt.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+                var monthTx = Transactions.Where(t => t.Date.Year == year && t.Date.Month == (m + 1)).ToList();
+                var inc = monthTx.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount);
+                var exp = monthTx.Where(t => t.Type == TransactionType.Expense).Sum(t => t.Amount);
+                var net = inc - exp;
+
+                if (Math.Abs(net) > maxAbs) maxAbs = Math.Abs(net);
+
+                list.Add(new MonthPoint(key, label, shortLabel, fullDate, net, inc, exp, monthTx.Count));
+            }
+
+            var hasData = list.Any(pt => pt.Count > 0);
+
+            var result = new List<MonthPoint>();
+            for (int i = 0; i < list.Count; i++)
+            {
+                var pt = list[i];
+                var x = PaddingX + ((double)i / (list.Count - 1)) * (Width - 2 * PaddingX);
+                var normalized = hasData
+                    ? (double)((pt.Amount + maxAbs) / (2 * maxAbs))
+                    : 0.5;
+                var y = Height - PaddingBottom - normalized * (Height - PaddingTop - PaddingBottom);
+                pt.X = x;
+                pt.Y = y;
+                result.Add(pt);
+            }
+
+            return result;
+        }
+    }
+
+    private int SafeIndex => Math.Clamp(_hoverIndex, 0, Math.Max(0, Points.Count - 1));
+
+    private MonthPoint ActivePoint => Points.Count > 0
+        ? Points[SafeIndex]
+        : new MonthPoint("", "Now", "N", "Current Month", 0, 0, 0, 0, Width / 2.0, Height / 2.0);
+
+    private string LinePath
+    {
+        get
+        {
+            var pts = Points;
+            if (pts.Count == 0) return string.Empty;
+
+            var d = $"M {pts[0].X.ToString("F2", CultureInfo.InvariantCulture)} {pts[0].Y.ToString("F2", CultureInfo.InvariantCulture)}";
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                var p0 = pts[i == 0 ? 0 : i - 1];
+                var p1 = pts[i];
+                var p2 = pts[i + 1];
+                var p3 = (i + 2 < pts.Count) ? pts[i + 2] : p2;
+
+                var cp1x = p1.X + (p2.X - p0.X) / 6.0;
+                var cp1y = p1.Y + (p2.Y - p0.Y) / 6.0;
+                var cp2x = p2.X - (p3.X - p1.X) / 6.0;
+                var cp2y = p2.Y - (p3.Y - p1.Y) / 6.0;
+
+                d += string.Format(CultureInfo.InvariantCulture,
+                    " C {0:F2} {1:F2}, {2:F2} {3:F2}, {4:F2} {5:F2}",
+                    cp1x, cp1y, cp2x, cp2y, p2.X, p2.Y);
+            }
+            return d;
+        }
+    }
+
+    private string AreaPath
+    {
+        get
+        {
+            var pts = Points;
+            if (pts.Count == 0 || string.IsNullOrEmpty(LinePath)) return string.Empty;
+            return string.Format(CultureInfo.InvariantCulture,
+                "{0} L {1:F2} {2} L {3:F2} {2} Z",
+                LinePath, pts[^1].X, Height - PaddingBottom, pts[0].X);
+        }
+    }
+}

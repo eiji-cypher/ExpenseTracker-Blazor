@@ -1,0 +1,96 @@
+<div class="onboarding-overlay" @onclick="HandleBackdropClick">
+    <div class="onboarding-card-neo"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="onboarding-title"
+         @onclick:stopPropagation="true">
+        <div class="onboarding-brand-header">
+            <img src="/logo.png" alt="EijiDev Budget Pocket" class="onboarding-logo" />
+        </div>
+
+        <div class="onboarding-content">
+            <h2 id="onboarding-title" class="onboarding-title">
+                @(IsEditMode ? "Edit Account Name" : "Hey! What should I call you?")
+            </h2>
+            <p class="onboarding-subtitle">
+                @(IsEditMode
+                    ? "Update your display name for the budget pocket dashboard."
+                    : "Welcome to EijiDev Pocket Budget. Enter your name below to personalize your financial dashboard.")
+            </p>
+
+            <form @onsubmit="HandleSubmit" class="onboarding-form">
+                <div class="form-group-neo">
+                    <label for="user-name-input" class="form-label-neo">
+                        Your Name
+                    </label>
+                    <input id="user-name-input"
+                           type="text"
+                           autofocus
+                           placeholder="e.g. Sean"
+                           @bind="_name"
+                           @bind:event="oninput"
+                           class="form-input-neo large @(!string.IsNullOrEmpty(_error) ? "has-error" : "")"
+                           maxlength="40" />
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <span class="form-error-msg">@_error</span>
+                    }
+                </div>
+
+                <div class="onboarding-actions-stack">
+                    <button type="submit" class="onboarding-submit-btn">
+                        <span>@(IsEditMode ? "Save Name" : "Continue to Budget Pocket")</span>
+                        <span class="btn-arrow">→</span>
+                    </button>
+
+                    @if (IsEditMode && OnCancel.HasDelegate)
+                    {
+                        <button type="button"
+                                class="btn-neo-secondary full-width"
+                                @onclick="OnCancel">
+                            Cancel
+                        </button>
+                    }
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string InitialName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _name = string.Empty;
+    private string _error = string.Empty;
+
+    private bool IsEditMode => !string.IsNullOrWhiteSpace(InitialName);
+
+    protected override void OnInitialized()
+    {
+        _name = InitialName;
+    }
+
+    private async Task HandleSubmit()
+    {
+        var trimmed = _name.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            _error = "Please enter your name so we can personalize your experience.";
+            return;
+        }
+
+        _error = string.Empty;
+        await OnSubmit.InvokeAsync(trimmed);
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        if (IsEditMode && OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+}
+

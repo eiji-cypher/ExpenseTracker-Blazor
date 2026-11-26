@@ -1,0 +1,10 @@
+@page "/login"
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Zero login barriers as requested. Redirect directly to dashboard.
+        Nav.NavigateTo("", replace: true);
+    }
+}

@@ -1,0 +1,235 @@
+@using System.Globalization
+@using ExpenseTracker.Helpers
+@using ExpenseTracker.Models
+
+<form class="neo-form" @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+    <!-- Transaction Type -->
+    <div class="form-group">
+        <label class="field-label">Transaction Type</label>
+        <div class="neo-seg-control" role="group" aria-label="Type">
+            <button type="button"
+                    class="neo-seg-btn @(_model.Type == TransactionType.Income ? "active income" : "")"
+                    @onclick="() => HandleTypeChange(TransactionType.Income)">
+                + Income
+            </button>
+            <button type="button"
+                    class="neo-seg-btn @(_model.Type == TransactionType.Expense ? "active expense" : "")"
+                    @onclick="() => HandleTypeChange(TransactionType.Expense)">
+                − Expense
+            </button>
+        </div>
+    </div>
+
+    <!-- Amount (PHP) -->
+    <div class="form-group">
+        <label class="field-label">
+            Amount (PHP)
+            <div class="input-with-prefix">
+                <span class="input-prefix">₱</span>
+                <input type="number"
+                       step="0.01"
+                       min="0.01"
+                       inputmode="decimal"
+                       class="neo-input amount-input @(!string.IsNullOrEmpty(_errors.GetValueOrDefault("amount")) ? "has-error" : "")"
+                       @bind="_amountStr"
+                       @bind:event="oninput"
+                       placeholder="0.00"
+                       autofocus="@(Initial is null)" />
+            </div>
+            @if (!string.IsNullOrEmpty(_errors.GetValueOrDefault("amount")))
+            {
+                <span class="field-error-msg">@_errors["amount"]</span>
+            }
+        </label>
+    </div>
+
+    <!-- Category -->
+    <div class="form-group">
+        <label class="field-label">
+            @CategoryLabel
+            <div class="select-wrap">
+                <select class="neo-select @(!string.IsNullOrEmpty(_errors.GetValueOrDefault("category")) ? "has-error" : "")"
+                        value="@_model.Category"
+                        @onchange="HandleCategoryChange">
+                    @foreach (var cat in AvailableCategories)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+            </div>
+            @if (!string.IsNullOrEmpty(_errors.GetValueOrDefault("category")))
+            {
+                <span class="field-error-msg">@_errors["category"]</span>
+            }
+        </label>
+    </div>
+
+    <!-- Date -->
+    <div class="form-group">
+        <label class="field-label">
+            Date
+            <input type="date"
+                   max="@MaxDate"
+                   class="neo-input @(!string.IsNullOrEmpty(_errors.GetValueOrDefault("date")) ? "has-error" : "")"
+                   value="@_dateStr"
+                   @onchange="HandleDateChange" />
+            @if (!string.IsNullOrEmpty(_errors.GetValueOrDefault("date")))
+            {
+                <span class="field-error-msg">@_errors["date"]</span>
+            }
+        </label>
+    </div>
+
+    <!-- Description (Optional) -->
+    <div class="form-group">
+        <label class="field-label">
+            Description (Optional)
+            <input class="neo-input"
+                   @bind="_model.Description"
+                   @bind:event="oninput"
+                   placeholder="@DescriptionPlaceholder"
+                   maxlength="100" />
+        </label>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions-row">
+        @if (OnCancel.HasDelegate)
+        {
+            <button type="button" class="btn-neo-secondary" @onclick="OnCancel">
+                Cancel
+            </button>
+        }
+        <button type="submit" class="btn-neo-primary">
+            @SubmitLabel
+        </button>
+    </div>
+</form>
+
+@code {
+    [Parameter] public Transaction? Initial { get; set; }
+    [Parameter] public string SubmitLabel { get; set; } = "Save Transaction";
+    [Parameter] public EventCallback<Transaction> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Transaction _model = new();
+    private string _amountStr = string.Empty;
+    private string _dateStr = DateTime.Today.ToString("yyyy-MM-dd");
+    private readonly Dictionary<string, string> _errors = new();
+
+    private string MaxDate => DateTime.Today.ToString("yyyy-MM-dd");
+
+    private bool IsIncome => _model.Type == TransactionType.Income;
+
+    private IEnumerable<Category> AvailableCategories =>
+        IsIncome ? CategoryExtensions.IncomeCategories : CategoryExtensions.ExpenseCategories;
+
+    private string CategoryLabel => IsIncome
+        ? "Income Source (Where is it from?)"
+        : "Expense Category";
+
+    private string DescriptionPlaceholder => IsIncome
+        ? "e.g. Monthly salary, client payment, project bonus (optional)"
+        : "e.g. Weekly grocery run, electric bill (optional)";
+
+    protected override void OnParametersSet()
+    {
+        if (Initial is not null)
+        {
+            _model = Initial.Clone();
+            _amountStr = _model.Amount > 0 ? _model.Amount.ToString("F2", CultureInfo.InvariantCulture) : string.Empty;
+            _dateStr = _model.Date.ToString("yyyy-MM-dd");
+        }
+        else
+        {
+            _model = new Transaction
+            {
+                Type = TransactionType.Income,
+                Category = Category.Salary,
+                Date = DateTime.Today
+            };
+            _amountStr = string.Empty;
+            _dateStr = DateTime.Today.ToString("yyyy-MM-dd");
+        }
+        _errors.Clear();
+    }
+
+    private void HandleTypeChange(TransactionType newType)
+    {
+        _model.Type = newType;
+        var allowed = newType == TransactionType.Income
+            ? CategoryExtensions.IncomeCategories
+            : CategoryExtensions.ExpenseCategories;
+
+        if (!allowed.Contains(_model.Category))
+        {
+            _model.Category = allowed[0];
+        }
+
+        _errors.Remove("type");
+        _errors.Remove("category");
+    }
+
+    private void HandleCategoryChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<Category>(e.Value?.ToString(), out var cat))
+        {
+            _model.Category = cat;
+            _errors.Remove("category");
+        }
+    }
+
+    private void HandleDateChange(ChangeEventArgs e)
+    {
+        _dateStr = e.Value?.ToString() ?? string.Empty;
+        if (DateTime.TryParse(_dateStr, out var d))
+        {
+            if (d.Date > DateTime.Today)
+            {
+                _errors["date"] = "Transaction date cannot be in the future.";
+            }
+            else
+            {
+                _errors.Remove("date");
+                _model.Date = d.Date;
+            }
+        }
+        else
+        {
+            _errors["date"] = "Pick a valid date.";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _errors.Clear();
+
+        // Amount validation
+        if (!decimal.TryParse(_amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var amt) || amt <= 0)
+        {
+            _errors["amount"] = "Enter an amount greater than ₱0.00.";
+        }
+        else
+        {
+            _model.Amount = amt;
+        }
+
+        // Date validation
+        if (string.IsNullOrWhiteSpace(_dateStr) || !DateTime.TryParse(_dateStr, out var d))
+        {
+            _errors["date"] = "Pick a valid date.";
+        }
+        else if (d.Date > DateTime.Today)
+        {
+            _errors["date"] = "Transaction date cannot be in the future.";
+        }
+        else
+        {
+            _model.Date = d.Date;
+        }
+
+        if (_errors.Count > 0) return;
+
+        await OnSubmit.InvokeAsync(_model.Clone());
+    }
+}

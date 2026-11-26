@@ -1,0 +1,281 @@
+@using System.Globalization
+@using ExpenseTracker.Helpers
+@using ExpenseTracker.Models
+
+<div class="analytics-view-content">
+    <div class="segmented-tabs-bar" role="tablist" aria-label="Analytics View Mode">
+        @foreach (var tab in new[] { "Overviews", "Categories", "Budget" })
+        {
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(_activeTab == tab)"
+                    class="segmented-tab-btn @(_activeTab == tab ? "active" : "")"
+                    @onclick="() => _activeTab = tab">
+                @tab
+            </button>
+        }
+    </div>
+
+    <!-- Spending Breakdown Section (Common to All Tabs) -->
+    <section class="spending-breakdown-section">
+        <div class="breakdown-header-row">
+            <h2 class="breakdown-title">Spending Breakdown</h2>
+            <span class="breakdown-year-text">Year @DateTime.Now.Year</span>
+        </div>
+
+        <div class="breakdown-main-amount">
+            −@Money.Format(TotalExpense)
+        </div>
+
+        <div class="breakdown-trend-row">
+            <span class="trend-text">
+                @(ExpenseCount == 0
+                    ? "No expenses recorded this period"
+                    : $"{ExpenseCount} {(ExpenseCount == 1 ? "expense" : "expenses")} recorded this period")
+            </span>
+        </div>
+
+        <WaveChart Transactions="Transactions" CurrentSpend="TotalExpense" />
+    </section>
+
+    <!-- Latest Transaction Dual-Cards (Common to All Tabs) -->
+    <section class="latest-metrics-section">
+        <h3 class="sub-section-title">Latest Transaction</h3>
+        <div class="metrics-dual-cards">
+            <!-- Spend -->
+            <div class="metric-mini-card">
+                <div class="mini-card-header">
+                    <span class="mini-card-label">Spend</span>
+                    <div class="card-icon-dark" title="Outflow">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <path d="M16 10a4 4 0 0 1-8 0" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="mini-card-amount">
+                    @Money.Format(LatestExpense?.Amount ?? 0m)
+                </div>
+                <div class="mini-card-footer">
+                    <span class="mini-card-sub">
+                        @(LatestExpense is not null ? $"{LatestExpense.Category} · {LatestExpense.Date:MMM dd, yyyy}" : "No expenses yet")
+                    </span>
+                </div>
+            </div>
+
+            <!-- Income -->
+            <div class="metric-mini-card">
+                <div class="mini-card-header">
+                    <span class="mini-card-label">Income</span>
+                    <div class="card-icon-dark" title="Inflow">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <polyline points="19 12 12 19 5 12" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="mini-card-amount">
+                    @Money.Format(LatestIncome?.Amount ?? 0m)
+                </div>
+                <div class="mini-card-footer">
+                    <span class="mini-card-sub">
+                        @(LatestIncome is not null ? $"{LatestIncome.Category} · {LatestIncome.Date:MMM dd, yyyy}" : "No income yet")
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Specific Sections -->
+    @if (_activeTab == "Categories")
+    {
+        <!-- Categories Distribution Section (matching reference photo) -->
+        <section class="category-dist-section">
+            <div class="section-header-row">
+                <h3 class="sub-section-title">Categories Distribution</h3>
+                <div class="cat-dist-subtabs-bar" role="tablist">
+                    <button type="button"
+                            class="cat-dist-tab @(_distTab == "Expense" ? "active expense" : "")"
+                            @onclick='() => _distTab = "Expense"'>
+                        Expenses
+                    </button>
+                    <button type="button"
+                            class="cat-dist-tab @(_distTab == "Income" ? "active income" : "")"
+                            @onclick='() => _distTab = "Income"'>
+                        Inflow
+                    </button>
+                </div>
+            </div>
+
+            <div class="categories-dist-list">
+                @foreach (var item in CurrentStats)
+                {
+                    <div class="cat-dist-row" @key="item.Category">
+                        <div class="cat-dist-line-top">
+                            <span class="cat-dist-name">@item.Category</span>
+                            <strong class="cat-dist-amount">@Money.Format(item.Amount)</strong>
+                        </div>
+                        <div class="cat-meter-track">
+                            <div class="cat-meter-fill @(_distTab == "Expense" ? "expense" : "income")"
+                                 style="width: @(item.Percent)%;"></div>
+                        </div>
+                        <div class="cat-dist-line-sub">
+                            <span class="cat-dist-count">@item.Count @(item.Count == 1 ? "transaction" : "transactions")</span>
+                            <span class="cat-dist-pct">@item.Percent% of @(_distTab == "Expense" ? "expenses" : "income")</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+    else if (_activeTab == "Budget")
+    {
+        <!-- Monthly Budget Goals Section (matching reference photo) -->
+        <section class="monthly-budget-section">
+            <h3 class="sub-section-title">Monthly Budget Goals</h3>
+            <div class="budget-panel-card">
+                <div class="budget-cap-row">
+                    <span class="budget-cap-label">Monthly Cap</span>
+                    <strong class="budget-cap-value">@Money.Format(MonthlyCap)</strong>
+                </div>
+                <div class="budget-meter-track">
+                    <div class="budget-meter-fill @(CapPercent > 90 ? "warning" : "")" style="width: @(CapPercent)%;"></div>
+                </div>
+                <div class="budget-sub-row">
+                    <span class="budget-spent-text">Spent @Money.Format(TotalExpense)</span>
+                    <span class="budget-remaining-text">Remaining @Money.Format(Remaining)</span>
+                </div>
+            </div>
+
+            <div class="overview-health-grid">
+                <div class="overview-stat-pill">
+                    <span class="overview-stat-label">Cap Utilization</span>
+                    <strong class="overview-stat-val">@CapPercent%</strong>
+                </div>
+                <div class="overview-stat-pill">
+                    <span class="overview-stat-label">Budget Status</span>
+                    <strong class="overview-stat-val @(CapPercent > 100 ? "expense" : "income")">
+                        @(CapPercent > 100 ? "Exceeded" : CapPercent > 80 ? "Watch Out" : "On Track")
+                    </strong>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <!-- Overviews Tab: Comprehensive Financial Health -->
+        <section class="monthly-budget-section">
+            <h3 class="sub-section-title">Financial Health Overview</h3>
+
+            <div class="overview-health-grid">
+                <div class="overview-stat-pill">
+                    <span class="overview-stat-label">Net Cash Flow</span>
+                    <strong class="overview-stat-val @(NetSavings >= 0 ? "income" : "expense")">
+                        @(NetSavings >= 0 ? "+" : "−")@Money.Format(Math.Abs(NetSavings))
+                    </strong>
+                </div>
+                <div class="overview-stat-pill">
+                    <span class="overview-stat-label">Savings Margin</span>
+                    <strong class="overview-stat-val">
+                        @(TotalIncome > 0 ? $"{Math.Max(0, (int)Math.Round(((TotalIncome - TotalExpense) / TotalIncome) * 100))}%" : "0%")
+                    </strong>
+                </div>
+            </div>
+
+            <!-- Quick Budget Cap Meter -->
+            <div class="budget-panel-card" style="margin-top: 0.75rem;">
+                <div class="budget-cap-row">
+                    <span class="budget-cap-label">Monthly Cap</span>
+                    <strong class="budget-cap-value">@Money.Format(MonthlyCap)</strong>
+                </div>
+                <div class="budget-meter-track">
+                    <div class="budget-meter-fill @(CapPercent > 90 ? "warning" : "")" style="width: @(CapPercent)%;"></div>
+                </div>
+                <div class="budget-sub-row">
+                    <span class="budget-spent-text">Spent @Money.Format(TotalExpense)</span>
+                    <span class="budget-remaining-text">Remaining @Money.Format(Remaining)</span>
+                </div>
+            </div>
+
+            <!-- Top Spending Categories Preview -->
+            @if (ExpenseStats.Any(s => s.Amount > 0))
+            {
+                <div class="categories-dist-list" style="margin-top: 0.75rem;">
+                    @foreach (var item in ExpenseStats.Where(s => s.Amount > 0).Take(3))
+                    {
+                        <div class="cat-dist-row" @key="item.Category">
+                            <div class="cat-dist-line-top">
+                                <span class="cat-dist-name">@item.Category</span>
+                                <strong class="cat-dist-amount">@Money.Format(item.Amount)</strong>
+                            </div>
+                            <div class="cat-meter-track">
+                                <div class="cat-meter-fill expense" style="width: @(item.Percent)%;"></div>
+                            </div>
+                            <div class="cat-dist-line-sub">
+                                <span class="cat-dist-count">@item.Count @(item.Count == 1 ? "transaction" : "transactions")</span>
+                                <span class="cat-dist-pct">@item.Percent% of expenses</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Transaction> Transactions { get; set; } = Array.Empty<Transaction>();
+
+    private string _activeTab = "Overviews";
+    private string _distTab = "Expense";
+
+    private decimal TotalExpense => Transactions.Where(t => t.Type == TransactionType.Expense).Sum(t => t.Amount);
+    private decimal TotalIncome => Transactions.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount);
+    private int ExpenseCount => Transactions.Count(t => t.Type == TransactionType.Expense);
+    private decimal NetSavings => TotalIncome - TotalExpense;
+
+    private decimal MonthlyCap => TotalIncome > 0 ? TotalIncome : 10000m;
+    private decimal Remaining => Math.Max(0, MonthlyCap - TotalExpense);
+    private int CapPercent => MonthlyCap > 0 ? Math.Min(100, (int)Math.Round((TotalExpense / MonthlyCap) * 100)) : 0;
+
+    private Transaction? LatestExpense => Transactions
+        .Where(t => t.Type == TransactionType.Expense)
+        .OrderByDescending(t => t.Date)
+        .ThenByDescending(t => t.Id)
+        .FirstOrDefault();
+
+    private Transaction? LatestIncome => Transactions
+        .Where(t => t.Type == TransactionType.Income)
+        .OrderByDescending(t => t.Date)
+        .ThenByDescending(t => t.Id)
+        .FirstOrDefault();
+
+    private record CategoryStat(string Category, decimal Amount, int Percent, int Count);
+
+    private List<CategoryStat> ExpenseStats => CalculateStats(TransactionType.Expense);
+    private List<CategoryStat> IncomeStats => CalculateStats(TransactionType.Income);
+    private List<CategoryStat> CurrentStats => _distTab == "Expense" ? ExpenseStats : IncomeStats;
+
+    private List<CategoryStat> CalculateStats(TransactionType type)
+    {
+        var allowedCategories = type == TransactionType.Expense
+            ? CategoryExtensions.ExpenseCategories
+            : CategoryExtensions.IncomeCategories;
+
+        var typeTransactions = Transactions.Where(t => t.Type == type).ToList();
+        var totalAmount = typeTransactions.Sum(t => t.Amount);
+
+        var list = new List<CategoryStat>();
+        foreach (var cat in allowedCategories)
+        {
+            var catTransactions = typeTransactions.Where(t => t.Category == cat).ToList();
+            var amt = catTransactions.Sum(t => t.Amount);
+            var count = catTransactions.Count;
+            var pct = totalAmount > 0 ? (int)Math.Round((amt / totalAmount) * 100) : 0;
+            list.Add(new CategoryStat(cat.ToString(), amt, pct, count));
+        }
+
+        return list.OrderByDescending(x => x.Amount).ThenBy(x => x.Category).ToList();
+    }
+}

@@ -1,0 +1,91 @@
+@using ExpenseTracker.Helpers
+@using ExpenseTracker.Models
+
+@if (Transactions.Count == 0)
+{
+    <div class="empty-state-box">
+        <div class="empty-icon-circle">
+            <svg class="icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="3" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+        </div>
+        <h4 class="empty-title">@(string.IsNullOrEmpty(EmptyText) ? "No Transactions Recorded" : "No Matching Records")</h4>
+        <p class="empty-text">
+            @(!string.IsNullOrEmpty(EmptyText) ? EmptyText : "Start tracking your financial pocket by adding your first income or expense entry.")
+        </p>
+    </div>
+}
+else
+{
+    <div class="transaction-list-wrap">
+        <div class="transaction-cards-grid">
+            @foreach (var t in Transactions)
+            {
+                var isIncome = t.Type == TransactionType.Income;
+                <div class="transaction-row-card" @key="t.Id">
+                    <div class="tx-left-meta">
+                        <div class="tx-icon-circle @(isIncome ? "income" : "expense")">
+                            @if (isIncome)
+                            {
+                                <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="17" y1="7" x2="7" y2="17" />
+                                    <polyline points="17 17 7 17 7 7" />
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="7" y1="17" x2="17" y2="7" />
+                                    <polyline points="7 7 17 7 17 17" />
+                                </svg>
+                            }
+                        </div>
+
+                        <div class="tx-details">
+                            <span class="tx-title" title="@(string.IsNullOrEmpty(t.Description) ? t.Category.ToString() : t.Description)">
+                                @(string.IsNullOrEmpty(t.Description) ? t.Category.ToString() : t.Description)
+                            </span>
+                            <span class="tx-subtitle">
+                                @t.Category · @t.Date.ToString("MMM dd, yyyy")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="tx-right-meta">
+                        <div class="tx-amount-col">
+                            <span class="tx-amount @(isIncome ? "income" : "expense")">
+                                @(isIncome ? "+" : "−")@Money.Format(t.Amount)
+                            </span>
+                            <span class="tx-time">@t.RecordTimeFormatted</span>
+                        </div>
+
+                        <div class="tx-quick-actions">
+                            <button type="button"
+                                    class="btn-action-pill edit"
+                                    @onclick="() => OnEdit.InvokeAsync(t)"
+                                    title="Edit transaction"
+                                    aria-label="Edit">
+                                Edit
+                            </button>
+                            <button type="button"
+                                    class="btn-action-pill delete"
+                                    @onclick="() => OnDelete.InvokeAsync(t)"
+                                    title="Move to trash"
+                                    aria-label="Delete">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<Transaction> Transactions { get; set; } = Array.Empty<Transaction>();
+    [Parameter] public EventCallback<Transaction> OnEdit { get; set; }
+    [Parameter] public EventCallback<Transaction> OnDelete { get; set; }
+    [Parameter] public string? EmptyText { get; set; }
+}

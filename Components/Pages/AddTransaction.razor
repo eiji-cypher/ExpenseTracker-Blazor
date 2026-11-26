@@ -1,0 +1,33 @@
+@page "/add"
+@inject IExpenseService Expenses
+@inject NavigationManager Nav
+@inject ToastService Toast
+
+<PageTitle>Add Transaction · EijiDev Budget Pocket</PageTitle>
+
+<ExpenseSummary />
+
+<section class="web-dashboard-card narrow-center single-focus-view">
+    <div class="card-header-neo">
+        <div class="card-header-title-group">
+            <h2>Record New Transaction</h2>
+            <span class="card-header-badge">PHP Currency</span>
+        </div>
+        <NavLink href="" class="btn-neo-secondary small">
+            ← Cancel
+        </NavLink>
+    </div>
+
+    <TransactionForm SubmitLabel="Add Transaction"
+                     OnSubmit="HandleAdd"
+                     OnCancel='() => Nav.NavigateTo("")' />
+</section>
+
+@code {
+    private async Task HandleAdd(Transaction item)
+    {
+        await Expenses.AddAsync(item);
+        Toast.Show("Transaction recorded successfully.");
+        Nav.NavigateTo("");
+    }
+}

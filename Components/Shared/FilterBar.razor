@@ -1,0 +1,99 @@
+@using ExpenseTracker.Models
+
+<div class="neo-filter-bar" role="search" aria-label="Transaction Filters">
+    <div class="search-input-wrap">
+        <span class="search-icon" aria-hidden="true">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+        </span>
+        <input type="search"
+               class="neo-search-input"
+               placeholder="Search description, category, amount..."
+               value="@Search"
+               @oninput="HandleSearchInput"
+               aria-label="Search transactions" />
+        @if (!string.IsNullOrEmpty(Search))
+        {
+            <button type="button"
+                    class="clear-search-btn"
+                    @onclick="ClearSearch"
+                    title="Clear search query"
+                    aria-label="Clear search query">
+                ✕
+            </button>
+        }
+    </div>
+
+    <div class="filter-selects-row">
+        <div class="select-pill-wrap">
+            <select class="neo-filter-select"
+                    value="@Category"
+                    @onchange="HandleCategoryChange"
+                    aria-label="Filter by Category">
+                <option value="">All Categories</option>
+                @foreach (var cat in AvailableCategories)
+                {
+                    <option value="@cat">@cat</option>
+                }
+            </select>
+        </div>
+
+        <div class="select-pill-wrap">
+            <select class="neo-filter-select"
+                    value="@Type"
+                    @onchange="HandleTypeChange"
+                    aria-label="Filter by Type">
+                <option value="">All Types</option>
+                <option value="@TransactionType.Expense">Expense</option>
+                <option value="@TransactionType.Income">Income</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Search { get; set; } = string.Empty;
+    [Parameter] public string Category { get; set; } = string.Empty;
+    [Parameter] public string Type { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> OnSearchChanged { get; set; }
+    [Parameter] public EventCallback<string> OnCategoryChanged { get; set; }
+    [Parameter] public EventCallback<string> OnTypeChanged { get; set; }
+
+    private IEnumerable<Category> AvailableCategories
+    {
+        get
+        {
+            if (Type == TransactionType.Income.ToString())
+                return CategoryExtensions.IncomeCategories;
+            if (Type == TransactionType.Expense.ToString())
+                return CategoryExtensions.ExpenseCategories;
+            return Enum.GetValues<Category>();
+        }
+    }
+
+    private async Task HandleSearchInput(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        await OnSearchChanged.InvokeAsync(val);
+    }
+
+    private async Task ClearSearch()
+    {
+        await OnSearchChanged.InvokeAsync(string.Empty);
+    }
+
+    private async Task HandleCategoryChange(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        await OnCategoryChanged.InvokeAsync(val);
+    }
+
+    private async Task HandleTypeChange(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        await OnTypeChanged.InvokeAsync(val);
+    }
+}
